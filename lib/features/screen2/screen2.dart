@@ -1,7 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
-
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 
@@ -14,8 +13,9 @@ class Screen2 extends StatefulWidget {
 
 class _Screen2State extends State<Screen2> {
   List<String> installedModels = [];
-  List<String> availableModels = ['mistral', 'gemma', 'llama3', 'phi3']; // Default models
-  String? selectedModel;
+  List<String> availableModels = [];
+  String? selectedInstalledModel;
+  String? selectedAvailableModel;
   bool isLoading = true;
   bool isDownloading = false;
   bool installingOllama = false;
@@ -37,6 +37,7 @@ class _Screen2State extends State<Screen2> {
       await installOllama();
     } else {
       await fetchInstalledModels();
+      await fetchAvailableModels();
     }
 
     setState(() => isLoading = false);
@@ -70,6 +71,7 @@ class _Screen2State extends State<Screen2> {
       showSuccessDialog("Ollama installed successfully!");
       isOllamaInstalled = true;
       await fetchInstalledModels();
+      await fetchAvailableModels();
     } catch (e) {
       Navigator.pop(context);
       showErrorDialog("Failed to install Ollama. Please install it manually.");
@@ -89,11 +91,8 @@ class _Screen2State extends State<Screen2> {
 
         setState(() {
           installedModels = models;
-          availableModels.removeWhere((model) => models.contains(model)); // Remove installed ones
-          selectedModel = models.isNotEmpty ? models.first : null;
+          selectedInstalledModel = models.isNotEmpty ? models.first : null;
         });
-      } else {
-        throw Exception('Failed to load models');
       }
     } catch (e) {
       setState(() => installedModels = []);
@@ -101,7 +100,27 @@ class _Screen2State extends State<Screen2> {
     }
   }
 
-  /// Download a model
+  /// Fetch available models from Ollama's online registry
+  Future<void> fetchAvailableModels() async {
+    try {
+      final response = await http.get(Uri.parse('https://ollama.ai/api/models'));
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        List<String> models = List<String>.from(data['models'].map((model) => model['name']));
+
+        setState(() {
+          availableModels = models.where((model) => !installedModels.contains(model)).toList();
+          selectedAvailableModel = availableModels.isNotEmpty ? availableModels.first : null;
+        });
+      }
+    } catch (e) {
+      setState(() => availableModels = []);
+      showErrorDialog('Failed to fetch available models.');
+    }
+  }
+
+  /// Download and install a model
   Future<void> downloadModel(String model) async {
     setState(() {
       isDownloading = true;
@@ -119,15 +138,16 @@ class _Screen2State extends State<Screen2> {
 
       if (response.statusCode == 200) {
         Navigator.pop(context);
-        showSuccessDialog('Model $model downloaded successfully!');
-        fetchInstalledModels();
+        showSuccessDialog('Model $model installed successfully!');
+        await fetchInstalledModels();
+        await fetchAvailableModels();
       } else {
         Navigator.pop(context);
-        showErrorDialog('Failed to download model. Try again.');
+        showErrorDialog('Failed to install model. Try again.');
       }
     } catch (e) {
       Navigator.pop(context);
-      showErrorDialog('Error downloading model.');
+      showErrorDialog('Error installing model.');
     }
 
     setState(() {
@@ -186,10 +206,7 @@ class _Screen2State extends State<Screen2> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Select Ollama Model'),
-        backgroundColor: Colors.blue,
-      ),
+      appBar: AppBar(title: const Text('Select Ollama Model')),
       body: Padding(
         padding: const EdgeInsets.all(16.0),
         child: isLoading
@@ -206,20 +223,15 @@ class _Screen2State extends State<Screen2> {
                   // Dropdown for installed models
                   if (installedModels.isNotEmpty)
                     DropdownButtonFormField<String>(
-                      value: selectedModel,
+                      value: selectedInstalledModel,
                       decoration: InputDecoration(
                         border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
                       ),
                       items: installedModels.map((model) {
-                        return DropdownMenuItem(
-                          value: model,
-                          child: Text(model),
-                        );
+                        return DropdownMenuItem(value: model, child: Text(model));
                       }).toList(),
                       onChanged: (newValue) {
-                        setState(() {
-                          selectedModel = newValue;
-                        });
+                        setState(() => selectedInstalledModel = newValue);
                       },
                     )
                   else
@@ -227,47 +239,42 @@ class _Screen2State extends State<Screen2> {
 
                   const SizedBox(height: 20),
 
-                  // Save button
                   ElevatedButton(
-                    onPressed: selectedModel != null
-                        ? () => Navigator.pop(context, selectedModel)
+                    onPressed: selectedInstalledModel != null
+                        ? () => Navigator.pop(context, selectedInstalledModel)
                         : null,
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.blue,
-                      padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 24),
-                    ),
-                    child: const Text('Save & Back', style: TextStyle(color: Colors.white)),
+                    child: const Text('Save & Back'),
                   ),
 
                   const SizedBox(height: 20),
 
-                  // Available models section
                   const Text(
-                    'Available Models for Installation:',
+                    'Install New Model:',
                     style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                   ),
                   const SizedBox(height: 10),
 
-                  if (availableModels.isNotEmpty)
-                    Wrap(
-                      spacing: 8,
-                      runSpacing: 8,
-                      children: availableModels.map((model) {
-                        return ElevatedButton(
-                          onPressed: () => downloadModel(model),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.red,
-                            padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
-                          ),
-                          child: Text(
-                            'Download $model',
-                            style: const TextStyle(color: Colors.white),
-                          ),
-                        );
-                      }).toList(),
-                    )
-                  else
-                    const Text('All available models are installed.'),
+                  DropdownButtonFormField<String>(
+                    value: selectedAvailableModel,
+                    decoration: InputDecoration(
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                    ),
+                    items: availableModels.map((model) {
+                      return DropdownMenuItem(value: model, child: Text(model));
+                    }).toList(),
+                    onChanged: (newValue) {
+                      setState(() => selectedAvailableModel = newValue);
+                    },
+                  ),
+
+                  const SizedBox(height: 10),
+
+                  ElevatedButton(
+                    onPressed: selectedAvailableModel != null
+                        ? () => downloadModel(selectedAvailableModel!)
+                        : null,
+                    child: const Text('Install Model'),
+                  ),
                 ],
               ),
       ),
