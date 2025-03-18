@@ -14,6 +14,7 @@ class ChatArea extends StatelessWidget {
     required this.textController,
     required this.scrollController,
     required this.sendMessage,
+
   });
 
   @override

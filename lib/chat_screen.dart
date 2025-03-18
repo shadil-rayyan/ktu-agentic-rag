@@ -1,15 +1,13 @@
 import 'dart:convert';
-import 'package:http/http.dart' as http;
 import 'package:flutter/material.dart';
+import 'package:http/http.dart' as http;
 import 'message.dart';
 import 'header.dart';
 import 'side_panel.dart';
 import 'chat_area.dart';
 
 class ChatScreen extends StatefulWidget {
-  final String selectedModel; // Store the selected model name
-
-  const ChatScreen({super.key, required this.selectedModel});
+  const ChatScreen({super.key});
 
   @override
   _ChatScreenState createState() => _ChatScreenState();
@@ -19,19 +17,15 @@ class _ChatScreenState extends State<ChatScreen> {
   final TextEditingController _textController = TextEditingController();
   final List<Message> _messages = [];
   final ScrollController _scrollController = ScrollController();
+  bool _isLoading = false;
 
-  void _sendMessage(String text) async {
-    if (text.isEmpty) return;
+  Future<void> _sendMessage(String text) async {
+    if (text.trim().isEmpty || _isLoading) return;
 
     setState(() {
       _messages.add(Message(text: text, isUser: true));
-    });
-
-    _textController.clear();
-
-    // Show typing indicator
-    setState(() {
       _messages.add(Message(text: "Thinking...", isUser: false));
+      _isLoading = true;
     });
 
     try {
@@ -39,34 +33,42 @@ class _ChatScreenState extends State<ChatScreen> {
         Uri.parse('http://localhost:11434/api/generate'),
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode({
-          "model": widget.selectedModel, // Use the selected model
-          "prompt": text,
-          "stream": false, // Change to true for streaming responses
+          'model': 'deepseek-r1:latest', // 🔥 Always using deepseek-r1:latest
+          'prompt': text,
+          'stream': false,
         }),
       );
 
       if (response.statusCode == 200) {
-        final data = jsonDecode(response.body);
-        String responseText = data['response'] ?? "No response received.";
+        final jsonResponse = jsonDecode(response.body);
+        final String responseText = jsonResponse['response'] ?? "No response received.";
 
         setState(() {
           _messages.removeLast(); // Remove "Thinking..."
           _messages.add(Message(text: responseText, isUser: false));
         });
       } else {
-        setState(() {
-          _messages.removeLast();
-          _messages.add(Message(text: "Error: Failed to get a response.", isUser: false));
-        });
+        _handleError(response.statusCode, response.body);
       }
     } catch (e) {
+      _handleError(500, e.toString());
+    } finally {
       setState(() {
-        _messages.removeLast();
-        _messages.add(Message(text: "Error connecting to Ollama.", isUser: false));
+        _isLoading = false;
       });
+      _scrollToBottom();
     }
+  }
 
-    // Auto-scroll to the latest message
+  void _handleError(int statusCode, String message) {
+    print("Error ($statusCode): $message");
+    setState(() {
+      _messages.removeLast();
+      _messages.add(Message(text: "Error: $statusCode\n$message", isUser: false));
+    });
+  }
+
+  void _scrollToBottom() {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _scrollController.animateTo(
         _scrollController.position.maxScrollExtent,

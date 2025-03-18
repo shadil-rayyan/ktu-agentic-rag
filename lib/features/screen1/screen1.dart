@@ -1,6 +1,11 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:http/http.dart' as http;
+import 'dart:convert';
+import 'package:logger/logger.dart';
+
 import 'package:kturag/chat_screen.dart';
+import 'package:kturag/features/screen2/screen2.dart';
 
 class Screen1 extends StatefulWidget {
   final bool isDarkMode;
@@ -21,6 +26,7 @@ class Screen1 extends StatefulWidget {
 class _Screen1State extends State<Screen1> {
   bool isStartingOllama = true;
   String? selectedModel = "mistral"; // Default model
+  final Logger log = Logger(); // Initialize logger
 
   @override
   void initState() {
@@ -28,88 +34,129 @@ class _Screen1State extends State<Screen1> {
     _setupOllama();
   }
 
+  /// **Check if Ollama is installed and start it if necessary**
   Future<void> _setupOllama() async {
+    log.i("Checking if Ollama is installed...");
+
     bool isInstalled = await _checkOllamaInstalled();
     if (!isInstalled) {
+      log.e("Ollama is not installed.");
       _showErrorDialog('Ollama is not installed. Please install it first.');
       setState(() => isStartingOllama = false);
       return;
     }
 
+    log.i("Checking if Ollama is running...");
     bool isRunning = await _isOllamaRunning();
     if (!isRunning) {
+      log.w("Ollama is not running. Attempting to start...");
       await _startOllama();
-      await Future.delayed(
-          const Duration(seconds: 3)); // Wait for Ollama to start
+      await Future.delayed(const Duration(seconds: 5)); // Wait for Ollama to start
     }
 
     bool ollamaReady = await _isOllamaRunning();
     if (ollamaReady) {
+      log.i("Ollama is running.");
       widget.onOllamaReady();
-      await _fetchAvailableModels(); // Get the list of models
+      await _fetchAvailableModels();
     } else {
+      log.e("Ollama failed to start.");
       _showErrorDialog('Ollama failed to start.');
     }
 
     setState(() => isStartingOllama = false);
   }
 
+  /// **Check if Ollama is installed**
   Future<bool> _checkOllamaInstalled() async {
     try {
       ProcessResult result = await Process.run('ollama', ['-v']);
       return result.exitCode == 0;
     } catch (e) {
+      log.e("Failed to check Ollama installation: $e");
       return false;
     }
   }
 
+  /// **Check if Ollama is running**
   Future<bool> _isOllamaRunning() async {
     try {
-      final result =
-          await Process.run('curl', ['-s', 'http://localhost:11434/api/tags']);
-      return result.exitCode == 0;
+      final response = await http.get(Uri.parse('http://localhost:11434/api/tags'))
+          .timeout(const Duration(seconds: 3));
+
+      return response.statusCode == 200;
     } catch (e) {
+      log.w("Ollama is not responding: $e");
       return false;
     }
   }
 
+  /// **Start Ollama server**
   Future<void> _startOllama() async {
     try {
       if (Platform.isWindows) {
         await Process.start(
           'cmd',
-          [
-            '/c',
-            'start',
-            'cmd',
-            '/k',
-            'ollama serve'
-          ], // Ensures Ollama stays running
+          ['/c', 'start', '/b', 'ollama serve'], // Run in the background
           mode: ProcessStartMode.detached,
         );
       } else {
-        await Process.start('ollama', ['serve'],
-            mode: ProcessStartMode.detached);
+        await Process.start('ollama', ['serve'], mode: ProcessStartMode.detached);
       }
+      log.i("Ollama started successfully.");
     } catch (e) {
+      log.e("Failed to start Ollama: $e");
       _showErrorDialog('Failed to start Ollama. Try starting it manually.');
     }
   }
 
+  /// **Fetch available models from Ollama**
   Future<void> _fetchAvailableModels() async {
     try {
-      ProcessResult result =
-          await Process.run('curl', ['-s', 'http://localhost:11434/api/tags']);
-      if (result.exitCode == 0) {
-        // Extract the model list (if available)
-        setState(() => selectedModel =
-            "mistral"); // You can update this logic to select a different model
+      final response = await http.get(Uri.parse('http://localhost:11434/api/tags'))
+          .timeout(const Duration(seconds: 3));
+
+      log.d('Ollama API Response: ${response.body}');
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+
+        if (data == null || !data.containsKey('models')) {
+          log.e('Error: API response does not contain "models" key.');
+          _setDefaultModel();
+          return;
+        }
+
+        if (data['models'].isEmpty) {
+          log.w('No models available. Using default: deepseek-r1:latest');
+          _setDefaultModel();
+          return;
+        }
+
+        setState(() {
+          selectedModel = data['models'][0]['name']; // Ensure key exists
+        });
+
+        log.i('Selected Model: $selectedModel');
+      } else {
+        log.e('Failed to fetch models, Status Code: ${response.statusCode}');
+        _setDefaultModel();
       }
     } catch (e) {
-      // Ignore error, fallback to default model
+      log.e('Error fetching models: $e');
+      _setDefaultModel();
     }
   }
 
+  /// **Set Default Model if No Models Found**
+  void _setDefaultModel() {
+    setState(() {
+      selectedModel = "deepseek-r1:latest";
+    });
+    log.i("Using default model: deepseek-r1:latest");
+  }
+
+  /// **Show error dialog**
   void _showErrorDialog(String message) {
     showDialog(
       context: context,
@@ -126,17 +173,33 @@ class _Screen1State extends State<Screen1> {
     );
   }
 
-  void _startChat() {
-    if (!isStartingOllama) {
+  /// **Start chat with selected model**
+  void _startChat() async {
+    if (isStartingOllama) {
+      _showErrorDialog('Ollama is still starting. Please wait.');
+      return;
+    }
+
+    final selectedModelFromScreen2 = await Navigator.push(
+      context,
+      MaterialPageRoute(builder: (context) => const Screen2()),
+    );
+
+    if (selectedModelFromScreen2 != null && selectedModelFromScreen2 is String) {
+      setState(() {
+        selectedModel = selectedModelFromScreen2;
+      });
+    }
+
+    log.i("Starting chat with model: $selectedModel");
+
+    if (selectedModel != null) {
       Navigator.push(
         context,
-        MaterialPageRoute(
-          builder: (context) =>
-              ChatScreen(selectedModel: selectedModel ?? "mistral"),
-        ),
+        MaterialPageRoute(builder: (context) => ChatScreen()),
       );
     } else {
-      _showErrorDialog('Ollama is still starting. Please wait.');
+      _showErrorDialog('No model selected.');
     }
   }
 
@@ -161,8 +224,7 @@ class _Screen1State extends State<Screen1> {
                   ),
                 ),
                 Divider(
-                  color:
-                      widget.isDarkMode ? Colors.grey[800] : Colors.grey[300],
+                  color: widget.isDarkMode ? Colors.grey[800] : Colors.grey[300],
                   height: 1,
                 ),
                 TextButton.icon(
