@@ -4,7 +4,7 @@ import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'package:logger/logger.dart';
 
-import 'package:kturag/chat_screen.dart';
+import 'package:kturag/features/screen1/widgets/chat_screen.dart';
 import 'package:kturag/features/screen2/screen2.dart';
 
 class Screen1 extends StatefulWidget {
@@ -25,7 +25,7 @@ class Screen1 extends StatefulWidget {
 
 class _Screen1State extends State<Screen1> {
   bool isStartingOllama = true;
-  String? selectedModel = "mistral"; // Default model
+  String? selectedModel = "lama3.2:latest"; // Default model
   final Logger log = Logger(); // Initialize logger
 
   @override
