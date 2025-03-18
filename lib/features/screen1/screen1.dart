@@ -1,25 +1,17 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
-
-class ChatEntry {
-  String id;
-  String name;
-  bool isSelected;
-
-  ChatEntry({
-    required this.id,
-    required this.name,
-    this.isSelected = false,
-  });
-}
+import 'package:kturag/chat_screen.dart';
 
 class Screen1 extends StatefulWidget {
   final bool isDarkMode;
   final Function(bool) onDarkModeChanged;
-  
+  final Function() onOllamaReady;
+
   const Screen1({
     super.key,
     required this.isDarkMode,
     required this.onDarkModeChanged,
+    required this.onOllamaReady,
   });
 
   @override
@@ -27,192 +19,167 @@ class Screen1 extends StatefulWidget {
 }
 
 class _Screen1State extends State<Screen1> {
-  final List<ChatEntry> _chatEntries = [];
-  final TextEditingController _editController = TextEditingController();
-  int _selectedIndex = -1;
+  bool isStartingOllama = true;
+  String? selectedModel = "mistral"; // Default model
 
   @override
-  void dispose() {
-    _editController.dispose();
-    super.dispose();
+  void initState() {
+    super.initState();
+    _setupOllama();
   }
 
-  void _createNewChat() {
-    setState(() {
-      _chatEntries.add(ChatEntry(
-        id: DateTime.now().millisecondsSinceEpoch.toString(),
-        name: 'Chat ${_chatEntries.length + 1}',
-      ));
-      _selectedIndex = _chatEntries.length - 1;
-    });
+  Future<void> _setupOllama() async {
+    bool isInstalled = await _checkOllamaInstalled();
+    if (!isInstalled) {
+      _showErrorDialog('Ollama is not installed. Please install it first.');
+      setState(() => isStartingOllama = false);
+      return;
+    }
+
+    bool isRunning = await _isOllamaRunning();
+    if (!isRunning) {
+      await _startOllama();
+      await Future.delayed(
+          const Duration(seconds: 3)); // Wait for Ollama to start
+    }
+
+    bool ollamaReady = await _isOllamaRunning();
+    if (ollamaReady) {
+      widget.onOllamaReady();
+      await _fetchAvailableModels(); // Get the list of models
+    } else {
+      _showErrorDialog('Ollama failed to start.');
+    }
+
+    setState(() => isStartingOllama = false);
   }
 
-  void _deleteChat(int index) {
+  Future<bool> _checkOllamaInstalled() async {
+    try {
+      ProcessResult result = await Process.run('ollama', ['-v']);
+      return result.exitCode == 0;
+    } catch (e) {
+      return false;
+    }
+  }
+
+  Future<bool> _isOllamaRunning() async {
+    try {
+      final result =
+          await Process.run('curl', ['-s', 'http://localhost:11434/api/tags']);
+      return result.exitCode == 0;
+    } catch (e) {
+      return false;
+    }
+  }
+
+  Future<void> _startOllama() async {
+    try {
+      if (Platform.isWindows) {
+        await Process.start(
+          'cmd',
+          [
+            '/c',
+            'start',
+            'cmd',
+            '/k',
+            'ollama serve'
+          ], // Ensures Ollama stays running
+          mode: ProcessStartMode.detached,
+        );
+      } else {
+        await Process.start('ollama', ['serve'],
+            mode: ProcessStartMode.detached);
+      }
+    } catch (e) {
+      _showErrorDialog('Failed to start Ollama. Try starting it manually.');
+    }
+  }
+
+  Future<void> _fetchAvailableModels() async {
+    try {
+      ProcessResult result =
+          await Process.run('curl', ['-s', 'http://localhost:11434/api/tags']);
+      if (result.exitCode == 0) {
+        // Extract the model list (if available)
+        setState(() => selectedModel =
+            "mistral"); // You can update this logic to select a different model
+      }
+    } catch (e) {
+      // Ignore error, fallback to default model
+    }
+  }
+
+  void _showErrorDialog(String message) {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Delete Chat'),
-        content: const Text('Are you sure you want to delete this chat?'),
+        title: const Text('Error'),
+        content: Text(message),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel'),
-          ),
-          TextButton(
-            onPressed: () {
-              setState(() {
-                _chatEntries.removeAt(index);
-                if (_selectedIndex == index) {
-                  _selectedIndex = -1;
-                }
-              });
-              Navigator.pop(context);
-            },
-            child: const Text('Delete'),
+            child: const Text('OK'),
           ),
         ],
       ),
     );
   }
 
-  void _startEditing(int index) {
-    _editController.text = _chatEntries[index].name;
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Edit Chat Name'),
-        content: TextField(
-          controller: _editController,
-          autofocus: true,
-          decoration: const InputDecoration(
-            hintText: 'Enter new chat name',
-          ),
+  void _startChat() {
+    if (!isStartingOllama) {
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) =>
+              ChatScreen(selectedModel: selectedModel ?? "mistral"),
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel'),
-          ),
-          TextButton(
-            onPressed: () {
-              setState(() {
-                _chatEntries[index].name = _editController.text;
-              });
-              Navigator.pop(context);
-            },
-            child: const Text('Save'),
-          ),
-        ],
-      ),
-    );
+      );
+    } else {
+      _showErrorDialog('Ollama is still starting. Please wait.');
+    }
   }
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      width: 280,
-      color: widget.isDarkMode 
-          ? Colors.grey[900]
-          : Colors.grey[100],
-      child: Column(
-        children: [
-          Padding(
-            padding: const EdgeInsets.all(16.0),
-            child: Text(
-              'AI Chat App',
-              style: TextStyle(
-                fontSize: 20,
-                fontWeight: FontWeight.bold,
-                color: widget.isDarkMode ? Colors.white : Colors.black,
-              ),
-            ),
-          ),
-          Divider(
-            color: widget.isDarkMode ? Colors.grey[800] : Colors.grey[300],
-            height: 1,
-          ),
-          TextButton.icon(
-            icon: Icon(
-              Icons.add,
-              color: widget.isDarkMode ? Colors.white : Colors.blue,
-            ),
-            label: Text(
-              'New Chat',
-              style: TextStyle(
-                color: widget.isDarkMode ? Colors.white : Colors.blue,
-              ),
-            ),
-            onPressed: _createNewChat,
-          ),
-          Divider(
-            color: widget.isDarkMode ? Colors.grey[800] : Colors.grey[300],
-            height: 1,
-          ),
-          Expanded(
-            child: ListView.builder(
-              itemCount: _chatEntries.length,
-              itemBuilder: (context, index) {
-                final entry = _chatEntries[index];
-                return Material(
-                  color: _selectedIndex == index
-                      ? (widget.isDarkMode ? Colors.blue[900] : Colors.blue[100])
-                      : Colors.transparent,
-                  child: InkWell(
-                    onTap: () {
-                      setState(() {
-                        _selectedIndex = index;
-                      });
-                    },
-                    onLongPress: () => _deleteChat(index),
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 8.0),
-                      child: ListTile(
-                        title: Text(
-                          entry.name,
-                          style: TextStyle(
-                            color: widget.isDarkMode ? Colors.white : Colors.black,
-                          ),
-                        ),
-                        trailing: _selectedIndex == index
-                            ? IconButton(
-                                icon: Icon(
-                                  Icons.edit,
-                                  color: widget.isDarkMode ? Colors.white : Colors.blue,
-                                  size: 20,
-                                ),
-                                onPressed: () => _startEditing(index),
-                              )
-                            : null,
-                      ),
+    return isStartingOllama
+        ? const Center(child: CircularProgressIndicator())
+        : Container(
+            width: 280,
+            color: widget.isDarkMode ? Colors.grey[900] : Colors.grey[100],
+            child: Column(
+              children: [
+                Padding(
+                  padding: const EdgeInsets.all(16.0),
+                  child: Text(
+                    'AI Chat App',
+                    style: TextStyle(
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold,
+                      color: widget.isDarkMode ? Colors.white : Colors.black,
                     ),
                   ),
-                );
-              },
-            ),
-          ),
-          Divider(
-            color: widget.isDarkMode ? Colors.grey[800] : Colors.grey[300],
-            height: 1,
-          ),
-          Padding(
-            padding: const EdgeInsets.all(16.0),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Icon(
-                  widget.isDarkMode ? Icons.nightlight_round : Icons.wb_sunny,
-                  color: widget.isDarkMode ? Colors.white : Colors.grey,
                 ),
-                Switch(
-                  value: widget.isDarkMode,
-                  onChanged: widget.onDarkModeChanged,
-                  activeColor: Colors.blue,
+                Divider(
+                  color:
+                      widget.isDarkMode ? Colors.grey[800] : Colors.grey[300],
+                  height: 1,
+                ),
+                TextButton.icon(
+                  icon: Icon(
+                    Icons.add,
+                    color: widget.isDarkMode ? Colors.white : Colors.blue,
+                  ),
+                  label: Text(
+                    'New Chat',
+                    style: TextStyle(
+                      color: widget.isDarkMode ? Colors.white : Colors.blue,
+                    ),
+                  ),
+                  onPressed: _startChat,
                 ),
               ],
             ),
-          ),
-        ],
-      ),
-    );
+          );
   }
 }
