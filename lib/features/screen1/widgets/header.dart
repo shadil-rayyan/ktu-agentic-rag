@@ -31,7 +31,9 @@ class Header extends StatelessWidget {
               // Navigate to Screen2 when settings icon is clicked
               Navigator.push(
                 context,
-                MaterialPageRoute(builder: (context) => const Screen2()),
+                MaterialPageRoute(builder: (context) => Screen2(onLocaleChange: (locale) {
+                  // Handle locale change here
+                })),
               );
             },
           ),

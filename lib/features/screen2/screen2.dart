@@ -3,13 +3,19 @@ import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
+import 'package:kturag/localization/app_localizations.dart';
+// import 'package:kturag/app/app.dart';
+import 'package:kturag/main.dart';
 
 class Screen2 extends StatefulWidget {
-  const Screen2({super.key});
+  final Function(Locale) onLocaleChange;
+
+  const Screen2({super.key, required this.onLocaleChange});
 
   @override
   _Screen2State createState() => _Screen2State();
 }
+
 
 class _Screen2State extends State<Screen2> {
   List<String> installedModels = [];
@@ -28,10 +34,8 @@ class _Screen2State extends State<Screen2> {
     setupOllama();
   }
 
-  /// Check if Ollama is installed; if not, install it
   Future<void> setupOllama() async {
     setState(() => isLoading = true);
-
     isOllamaInstalled = await checkOllamaInstalled();
     if (!isOllamaInstalled) {
       await installOllama();
@@ -39,11 +43,9 @@ class _Screen2State extends State<Screen2> {
       await fetchInstalledModels();
       await fetchAvailableModels();
     }
-
     setState(() => isLoading = false);
   }
 
-  /// Check if Ollama is installed
   Future<bool> checkOllamaInstalled() async {
     try {
       var result = await Process.run('ollama', ['--version']);
@@ -53,10 +55,10 @@ class _Screen2State extends State<Screen2> {
     }
   }
 
-  /// Install Ollama
   Future<void> installOllama() async {
     setState(() => installingOllama = true);
-    showProgressDialog("Installing Ollama...");
+    showProgressDialog(
+        AppLocalizations.of(context)!.translate("installing_ollama"));
 
     try {
       if (Platform.isWindows) {
@@ -64,30 +66,33 @@ class _Screen2State extends State<Screen2> {
       } else if (Platform.isMacOS) {
         await Process.run('brew', ['install', 'ollama']);
       } else if (Platform.isLinux) {
-        await Process.run('bash', ['-c', 'curl -fsSL https://ollama.ai/install.sh | bash']);
+        await Process.run(
+            'bash', ['-c', 'curl -fsSL https://ollama.ai/install.sh | bash']);
       }
 
       Navigator.pop(context);
-      showSuccessDialog("Ollama installed successfully!");
+      showSuccessDialog(
+          AppLocalizations.of(context)!.translate("ollama_installed"));
       isOllamaInstalled = true;
       await fetchInstalledModels();
       await fetchAvailableModels();
     } catch (e) {
       Navigator.pop(context);
-      showErrorDialog("Failed to install Ollama. Please install it manually.");
+      showErrorDialog(AppLocalizations.of(context)!.translate("install_failed"));
     }
 
     setState(() => installingOllama = false);
   }
 
-  /// Fetch installed models
   Future<void> fetchInstalledModels() async {
     try {
-      final response = await http.get(Uri.parse('http://localhost:11434/api/tags'));
+      final response =
+          await http.get(Uri.parse('http://localhost:11434/api/tags'));
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
-        List<String> models = List<String>.from(data['models'].map((model) => model['name']));
+        List<String> models =
+            List<String>.from(data['models'].map((model) => model['name']));
 
         setState(() {
           installedModels = models;
@@ -96,38 +101,43 @@ class _Screen2State extends State<Screen2> {
       }
     } catch (e) {
       setState(() => installedModels = []);
-      showErrorDialog('Failed to connect to Ollama. Make sure it is running.');
+      showErrorDialog(
+          AppLocalizations.of(context)!.translate("connection_failed"));
     }
   }
 
-  /// Fetch available models from Ollama's online registry
   Future<void> fetchAvailableModels() async {
     try {
-      final response = await http.get(Uri.parse('https://ollama.ai/api/models'));
+      final response =
+          await http.get(Uri.parse('https://ollama.ai/api/models'));
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
-        List<String> models = List<String>.from(data['models'].map((model) => model['name']));
+        List<String> models =
+            List<String>.from(data['models'].map((model) => model['name']));
 
         setState(() {
-          availableModels = models.where((model) => !installedModels.contains(model)).toList();
-          selectedAvailableModel = availableModels.isNotEmpty ? availableModels.first : null;
+          availableModels = models
+              .where((model) => !installedModels.contains(model))
+              .toList();
+          selectedAvailableModel =
+              availableModels.isNotEmpty ? availableModels.first : null;
         });
       }
     } catch (e) {
       setState(() => availableModels = []);
-      showErrorDialog('Failed to fetch available models.');
+      showErrorDialog(AppLocalizations.of(context)!.translate("fetch_failed"));
     }
   }
 
-  /// Download and install a model
   Future<void> downloadModel(String model) async {
     setState(() {
       isDownloading = true;
       downloadProgress = 0.0;
     });
 
-    showProgressDialog("Downloading $model...");
+    showProgressDialog(
+        "${AppLocalizations.of(context)!.translate("downloading")} $model...");
 
     try {
       var response = await http.post(
@@ -138,16 +148,19 @@ class _Screen2State extends State<Screen2> {
 
       if (response.statusCode == 200) {
         Navigator.pop(context);
-        showSuccessDialog('Model $model installed successfully!');
+        showSuccessDialog(
+            AppLocalizations.of(context)!.translate("model_installed"));
         await fetchInstalledModels();
         await fetchAvailableModels();
       } else {
         Navigator.pop(context);
-        showErrorDialog('Failed to install model. Try again.');
+        showErrorDialog(
+            AppLocalizations.of(context)!.translate("install_failed"));
       }
     } catch (e) {
       Navigator.pop(context);
-      showErrorDialog('Error installing model.');
+      showErrorDialog(
+          AppLocalizations.of(context)!.translate("error_installing"));
     }
 
     setState(() {
@@ -156,7 +169,6 @@ class _Screen2State extends State<Screen2> {
     });
   }
 
-  /// Show progress dialog
   void showProgressDialog(String message) {
     showDialog(
       context: context,
@@ -181,10 +193,11 @@ class _Screen2State extends State<Screen2> {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Error'),
+        title: Text(AppLocalizations.of(context)!.translate("error")),
         content: Text(message),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: const Text('OK')),
+          TextButton(
+              onPressed: () => Navigator.pop(context), child: const Text('OK')),
         ],
       ),
     );
@@ -194,10 +207,11 @@ class _Screen2State extends State<Screen2> {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Success'),
+        title: Text(AppLocalizations.of(context)!.translate("success")),
         content: Text(message),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: const Text('OK')),
+          TextButton(
+              onPressed: () => Navigator.pop(context), child: const Text('OK')),
         ],
       ),
     );
@@ -205,8 +219,27 @@ class _Screen2State extends State<Screen2> {
 
   @override
   Widget build(BuildContext context) {
+    var localization = AppLocalizations.of(context);
+
     return Scaffold(
-      appBar: AppBar(title: const Text('Select Ollama Model')),
+      appBar: AppBar(
+        title: Text(localization!.translate("select_model")),
+        actions: [
+          DropdownButton<Locale>(
+            icon: const Icon(Icons.language, color: Colors.white),
+            underline: const SizedBox(),
+            items: const [
+              DropdownMenuItem(value: Locale('en'), child: Text("English")),
+              DropdownMenuItem(value: Locale('es'), child: Text("Español")),
+            ],
+            onChanged: (Locale? newLocale) {
+              if (newLocale != null) {
+                LanguageProvider.of(context)?.changeLanguage(newLocale);
+              }
+            },
+          ),
+        ],
+      ),
       body: Padding(
         padding: const EdgeInsets.all(16.0),
         child: isLoading
@@ -214,66 +247,35 @@ class _Screen2State extends State<Screen2> {
             : Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text(
-                    'Installed Models:',
-                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                  Text(
+                    localization!.translate("installed_models"),
+                    style: const TextStyle(
+                        fontSize: 18, fontWeight: FontWeight.bold),
                   ),
                   const SizedBox(height: 12),
-
-                  // Dropdown for installed models
                   if (installedModels.isNotEmpty)
                     DropdownButtonFormField<String>(
                       value: selectedInstalledModel,
                       decoration: InputDecoration(
-                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                        border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(8)),
                       ),
                       items: installedModels.map((model) {
-                        return DropdownMenuItem(value: model, child: Text(model));
+                        return DropdownMenuItem(
+                            value: model, child: Text(model));
                       }).toList(),
                       onChanged: (newValue) {
                         setState(() => selectedInstalledModel = newValue);
                       },
                     )
                   else
-                    const Text('No models installed.'),
-
+                    Text(localization!.translate("no_models_installed")),
                   const SizedBox(height: 20),
-
                   ElevatedButton(
                     onPressed: selectedInstalledModel != null
                         ? () => Navigator.pop(context, selectedInstalledModel)
                         : null,
-                    child: const Text('Save & Back'),
-                  ),
-
-                  const SizedBox(height: 20),
-
-                  const Text(
-                    'Install New Model:',
-                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                  ),
-                  const SizedBox(height: 10),
-
-                  DropdownButtonFormField<String>(
-                    value: selectedAvailableModel,
-                    decoration: InputDecoration(
-                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-                    ),
-                    items: availableModels.map((model) {
-                      return DropdownMenuItem(value: model, child: Text(model));
-                    }).toList(),
-                    onChanged: (newValue) {
-                      setState(() => selectedAvailableModel = newValue);
-                    },
-                  ),
-
-                  const SizedBox(height: 10),
-
-                  ElevatedButton(
-                    onPressed: selectedAvailableModel != null
-                        ? () => downloadModel(selectedAvailableModel!)
-                        : null,
-                    child: const Text('Install Model'),
+                    child: Text(localization!.translate("save_back")),
                   ),
                 ],
               ),

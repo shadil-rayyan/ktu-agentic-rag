@@ -1,0 +1,13 @@
+{
+    "title": "Select Ollama Model",
+    "installed_models": "Installed Models:",
+    "no_models_installed": "No models installed.",
+    "save_back": "Save & Back",
+    "install_new_model": "Install New Model:",
+    "install_model": "Install Model",
+    "error": "Error",
+    "success": "Success",
+    "failed_installation": "Failed to install Ollama. Please install it manually.",
+    "ollama_installed": "Ollama installed successfully!"
+  }
+  

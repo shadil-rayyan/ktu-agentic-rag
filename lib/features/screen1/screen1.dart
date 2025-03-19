@@ -176,7 +176,10 @@ class _Screen1State extends State<Screen1> {
 
     final selectedModelFromScreen2 = await Navigator.push(
       context,
-      MaterialPageRoute(builder: (context) => const Screen2()),
+      MaterialPageRoute(builder: (context) => Screen2(onLocaleChange: (locale) {
+        // Handle locale change here
+        log.i("Locale changed to: $locale");
+      })),
     );
 
     if (selectedModelFromScreen2 != null && selectedModelFromScreen2 is String) {
