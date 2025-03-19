@@ -80,7 +80,10 @@ class _ChatScreenState extends State<ChatScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
     return Scaffold(
+      backgroundColor: theme.colorScheme.background, // Theme-aware background
       body: Column(
         children: [
           const Header(),
@@ -89,11 +92,16 @@ class _ChatScreenState extends State<ChatScreen> {
               children: [
                 const SidePanel(),
                 Expanded(
-                  child: ChatArea(
-                    messages: _messages,
-                    textController: _textController,
-                    scrollController: _scrollController,
-                    sendMessage: _sendMessage,
+                  child: Container(
+                    decoration: BoxDecoration(
+                      color: theme.colorScheme.surface, // Theme-aware chat area background
+                    ),
+                    child: ChatArea(
+                      messages: _messages,
+                      textController: _textController,
+                      scrollController: _scrollController,
+                      sendMessage: _sendMessage,
+                    ),
                   ),
                 ),
               ],

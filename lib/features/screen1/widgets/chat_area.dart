@@ -14,7 +14,6 @@ class ChatArea extends StatelessWidget {
     required this.textController,
     required this.scrollController,
     required this.sendMessage,
-
   });
 
   @override
@@ -41,13 +40,15 @@ class ChatArea extends StatelessWidget {
   }
 
   Widget _buildInputField(BuildContext context) {
+    final theme = Theme.of(context);
+    
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 16),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: theme.colorScheme.surface, // Theme-aware background
         boxShadow: [
           BoxShadow(
-            color: Colors.grey.withOpacity(0.2),
+            color: theme.shadowColor.withOpacity(0.2),
             spreadRadius: 2,
             blurRadius: 8,
             offset: const Offset(0, -2),
@@ -66,6 +67,7 @@ class ChatArea extends StatelessWidget {
                   borderSide: BorderSide.none,
                 ),
                 filled: true,
+                fillColor: theme.colorScheme.background, // Theme-aware input field
                 contentPadding: const EdgeInsets.symmetric(horizontal: 20),
               ),
               onSubmitted: sendMessage,
@@ -73,9 +75,10 @@ class ChatArea extends StatelessWidget {
           ),
           const SizedBox(width: 8),
           CircleAvatar(
-            backgroundColor: Theme.of(context).colorScheme.primary,
+            backgroundColor: theme.colorScheme.primary,
             child: IconButton(
-              icon: const Icon(Icons.send, color: Colors.white),
+              icon: const Icon(Icons.send),
+              color: theme.colorScheme.onPrimary,
               onPressed: () => sendMessage(textController.text),
             ),
           ),

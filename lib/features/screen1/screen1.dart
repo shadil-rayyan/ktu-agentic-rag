@@ -34,7 +34,6 @@ class _Screen1State extends State<Screen1> {
     _setupOllama();
   }
 
-  /// **Check if Ollama is installed and start it if necessary**
   Future<void> _setupOllama() async {
     log.i("Checking if Ollama is installed...");
 
@@ -67,7 +66,6 @@ class _Screen1State extends State<Screen1> {
     setState(() => isStartingOllama = false);
   }
 
-  /// **Check if Ollama is installed**
   Future<bool> _checkOllamaInstalled() async {
     try {
       ProcessResult result = await Process.run('ollama', ['-v']);
@@ -78,10 +76,10 @@ class _Screen1State extends State<Screen1> {
     }
   }
 
-  /// **Check if Ollama is running**
   Future<bool> _isOllamaRunning() async {
     try {
-      final response = await http.get(Uri.parse('http://localhost:11434/api/tags'))
+      final response = await http
+          .get(Uri.parse('http://localhost:11434/api/tags'))
           .timeout(const Duration(seconds: 3));
 
       return response.statusCode == 200;
@@ -91,7 +89,6 @@ class _Screen1State extends State<Screen1> {
     }
   }
 
-  /// **Start Ollama server**
   Future<void> _startOllama() async {
     try {
       if (Platform.isWindows) {
@@ -110,10 +107,10 @@ class _Screen1State extends State<Screen1> {
     }
   }
 
-  /// **Fetch available models from Ollama**
   Future<void> _fetchAvailableModels() async {
     try {
-      final response = await http.get(Uri.parse('http://localhost:11434/api/tags'))
+      final response = await http
+          .get(Uri.parse('http://localhost:11434/api/tags'))
           .timeout(const Duration(seconds: 3));
 
       log.d('Ollama API Response: ${response.body}');
@@ -148,7 +145,6 @@ class _Screen1State extends State<Screen1> {
     }
   }
 
-  /// **Set Default Model if No Models Found**
   void _setDefaultModel() {
     setState(() {
       selectedModel = "deepseek-r1:latest";
@@ -156,7 +152,6 @@ class _Screen1State extends State<Screen1> {
     log.i("Using default model: deepseek-r1:latest");
   }
 
-  /// **Show error dialog**
   void _showErrorDialog(String message) {
     showDialog(
       context: context,
@@ -173,7 +168,6 @@ class _Screen1State extends State<Screen1> {
     );
   }
 
-  /// **Start chat with selected model**
   void _startChat() async {
     if (isStartingOllama) {
       _showErrorDialog('Ollama is still starting. Please wait.');
@@ -196,7 +190,7 @@ class _Screen1State extends State<Screen1> {
     if (selectedModel != null) {
       Navigator.push(
         context,
-        MaterialPageRoute(builder: (context) => ChatScreen()),
+        MaterialPageRoute(builder: (context) => const ChatScreen()),
       );
     } else {
       _showErrorDialog('No model selected.');
@@ -205,37 +199,38 @@ class _Screen1State extends State<Screen1> {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
     return isStartingOllama
         ? const Center(child: CircularProgressIndicator())
         : Container(
             width: 280,
-            color: widget.isDarkMode ? Colors.grey[900] : Colors.grey[100],
+            color: theme.colorScheme.surface, // Adapts to theme mode
             child: Column(
               children: [
                 Padding(
                   padding: const EdgeInsets.all(16.0),
                   child: Text(
                     'AI Chat App',
-                    style: TextStyle(
-                      fontSize: 20,
+                    style: theme.textTheme.titleMedium?.copyWith(
                       fontWeight: FontWeight.bold,
-                      color: widget.isDarkMode ? Colors.white : Colors.black,
+                      color: theme.colorScheme.onSurface, // Adapts text color
                     ),
                   ),
                 ),
                 Divider(
-                  color: widget.isDarkMode ? Colors.grey[800] : Colors.grey[300],
+                  color: theme.colorScheme.outlineVariant, // Matches theme outline
                   height: 1,
                 ),
                 TextButton.icon(
                   icon: Icon(
                     Icons.add,
-                    color: widget.isDarkMode ? Colors.white : Colors.blue,
+                    color: theme.colorScheme.primary, // Uses primary theme color
                   ),
                   label: Text(
                     'New Chat',
                     style: TextStyle(
-                      color: widget.isDarkMode ? Colors.white : Colors.blue,
+                      color: theme.colorScheme.primary, // Themed text color
                     ),
                   ),
                   onPressed: _startChat,
