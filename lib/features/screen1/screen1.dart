@@ -25,7 +25,7 @@ class Screen1 extends StatefulWidget {
 
 class _Screen1State extends State<Screen1> {
   bool isStartingOllama = true;
-  String? selectedModel = "lama3.2:latest"; // Default model
+  String? selectedModel = "lama3.2:3b"; // Default model
   final Logger log = Logger(); // Initialize logger
 
   @override
